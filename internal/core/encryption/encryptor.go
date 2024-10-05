@@ -9,3 +9,14 @@ import (
 type Encryptor interface {
 	Encrypt(ctx context.Context, data []types.SecretPayload, resultCh chan<- []byte, errCh chan<- error)
 }
+
+type aesEncryptor struct {
+}
+
+func NewEnc() *aesEncryptor {
+	return &aesEncryptor{}
+}
+
+func (e *aesEncryptor) Encrypt(ctx context.Context, data []types.SecretPayload, resultCh chan<- []byte, errCh chan<- error) {
+
+}
