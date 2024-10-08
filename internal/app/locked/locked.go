@@ -1,17 +1,17 @@
 package locked
 
 import (
-	"github.com/0x0FACED/locked/internal/core/database"
-	"github.com/0x0FACED/locked/internal/core/encryption"
-	"github.com/0x0FACED/locked/internal/core/zip"
+	"github.com/0x0FACED/locked/internal/app/services"
 )
 
 type app struct {
-	zip   zip.Compressor
-	unzip zip.Decompressor
+	file services.SecretService
+}
 
-	enc encryption.Encryptor
-	dec encryption.Decryptor
+func New() *app {
+	return &app{}
+}
 
-	db database.Database
+func Start() error {
+	panic("impl me")
 }
