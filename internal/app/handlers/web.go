@@ -1,13 +1,13 @@
-package adapters
+package handlers
 
 import "github.com/0x0FACED/locked/internal/app/services"
 
-type CLIAdapter struct {
+type WebHandler struct {
 	secretSrv services.SecretService
 }
 
-func NewCLI(srv services.SecretService) CLIAdapter {
-	return CLIAdapter{
+func NewWeb(srv services.SecretService) WebHandler {
+	return WebHandler{
 		secretSrv: srv,
 	}
 }
