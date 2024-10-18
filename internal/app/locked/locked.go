@@ -1,6 +1,8 @@
 package locked
 
 import (
+	"context"
+
 	"github.com/0x0FACED/locked/internal/app/services"
 )
 
@@ -12,6 +14,10 @@ func New() *app {
 	return &app{}
 }
 
-func Start() error {
+func StartCLI(ctx context.Context) error {
+	panic("impl me")
+}
+
+func StartWeb(ctx context.Context) error {
 	panic("impl me")
 }
