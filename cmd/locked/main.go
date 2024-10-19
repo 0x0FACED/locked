@@ -28,7 +28,7 @@ func main() {
 		cancel()
 	}()
 
-	if len(os.Args) < 2 {
+	if len(os.Args) != 2 {
 		fmt.Println("Run with command: locked [cli|web]")
 		fmt.Println("$ locked cli // starts cli ui")
 		fmt.Println("$ locked web // starts web ui")
