@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 
 	"github.com/0x0FACED/locked/internal/core/database"
@@ -11,7 +12,11 @@ import (
 	"github.com/0x0FACED/locked/internal/core/models"
 )
 
-type SecretService struct {
+type SecretService interface {
+	Add(ctx context.Context, secret models.AddSecretCmdParams)
+}
+
+type secretService struct {
 	zip   zip.Compressor
 	unzip zip.Decompressor
 
@@ -25,12 +30,11 @@ type SecretService struct {
 	done  chan struct{}
 }
 
-func New() *SecretService {
-	return &SecretService{}
+func New() SecretService {
+	return &secretService{}
 }
 
-// TODO: Заменить secretUI на фактические данные, которые сохраняются
-func (s *SecretService) Add(secret models.SecretUI) {
+func (s *secretService) Add(ctx context.Context, secret models.AddSecretCmdParams) {
 	// zip
 	// enc
 	// open file
