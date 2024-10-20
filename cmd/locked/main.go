@@ -37,10 +37,13 @@ func main() {
 
 	command := os.Args[1]
 
+	// Пока что так сделал, но это не совсем гуд, как мне кажется
 	if command == cli {
-		locked.StartCLI(ctx)
+		app := locked.NewCLIApp()
+		app.StartCLI(ctx)
 	} else if command == web {
-		locked.StartWeb(ctx)
+		app := locked.NewWebApp()
+		app.StartWeb(ctx)
 	} else {
 		fmt.Println("Invalid command. Use 'locked cli' or 'locked web'.")
 		os.Exit(1)
