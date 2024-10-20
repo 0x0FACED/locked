@@ -4,19 +4,18 @@ import (
 	"context"
 	"os"
 
-	"github.com/0x0FACED/locked/internal/app/handlers"
 	"github.com/0x0FACED/locked/internal/app/services"
 )
 
 type webApp struct {
-	webHandler  *handlers.WebHandler
-	currentFile *os.File
+	secretService services.SecretService
+	currentFile   *os.File
 }
 
-func NewWebApp() *webApp {
-	secretService := services.New()
+func NewWebApp(resCh chan []byte, errCh chan error, done chan struct{}) *webApp {
+	secretService := services.New(resCh, errCh, done)
 	return &webApp{
-		webHandler: handlers.NewWeb(secretService),
+		secretService: secretService,
 	}
 }
 
