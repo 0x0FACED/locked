@@ -30,40 +30,47 @@ type secretService struct {
 	done  chan struct{}
 }
 
-func New() SecretService {
-	return &secretService{}
+func New(resCh chan []byte, errCh chan error, done chan struct{}) SecretService {
+	return &secretService{
+		resCh: resCh,
+		errCh: errCh,
+		done:  done,
+	}
 }
 
 func (s *secretService) Add(ctx context.Context, secret models.AddSecretCmdParams) {
-	// zip
-	// enc
-	// open file
-	// write header
-	// write data
-	// close file
+	go func() {
+		// zip
+		// enc
+		// open file
+		// write header
+		// write data
+		// close file
 
-	// zip.Compress(ctx, secret.Payload, s.resCh<-, s.errCh<-)
-	// enc.Encrypt(ctx, s.resCh, s.errCh<-)
+		// zip.Compress(ctx, secret.Payload, s.resCh<-, s.errCh<-)
+		// enc.Encrypt(ctx, s.resCh, s.errCh<-)
 
-	jsonData, err := json.Marshal(secret)
-	if err != nil {
-		s.errCh <- err
-		return
-	}
+		jsonData, err := json.Marshal(secret)
+		if err != nil {
+			s.errCh <- err
+			return
+		}
 
-	var buf bytes.Buffer
-	gzipWriter := gzip.NewWriter(&buf)
+		var buf bytes.Buffer
+		gzipWriter := gzip.NewWriter(&buf)
 
-	_, err = gzipWriter.Write(jsonData)
-	if err != nil {
-		s.errCh <- err
-		return
-	}
+		_, err = gzipWriter.Write(jsonData)
+		if err != nil {
+			s.errCh <- err
+			return
+		}
 
-	if err := gzipWriter.Close(); err != nil {
-		s.errCh <- err
-		return
-	}
+		if err := gzipWriter.Close(); err != nil {
+			s.errCh <- err
+			return
+		}
 
-	s.resCh <- buf.Bytes()
+		s.resCh <- buf.Bytes()
+	}()
+
 }
