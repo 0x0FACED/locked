@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/0x0FACED/locked/internal/app/locked"
 )
@@ -16,17 +14,7 @@ var (
 )
 
 func main() {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	go func() {
-		<-sigChan
-		fmt.Println("\nReceived interrupt signal, shutting down...")
-		cancel()
-	}()
+	ctx := context.Background()
 
 	if len(os.Args) != 2 {
 		fmt.Println("Run with command: locked [cli|web]")
@@ -36,13 +24,16 @@ func main() {
 	}
 
 	command := os.Args[1]
+	resCh := make(chan []byte, 10) // временно 10, потом думаю через конфиг передавать
+	errCh := make(chan error, 5)   // временно 5, потом думаю через конфиг передавать
+	done := make(chan struct{}, 2) // временно 2, потом думаю через конфиг передавать
 
 	// Пока что так сделал, но это не совсем гуд, как мне кажется
 	if command == cli {
-		app := locked.NewCLIApp()
+		app := locked.NewCLIApp(resCh, errCh, done)
 		app.StartCLI(ctx)
 	} else if command == web {
-		app := locked.NewWebApp()
+		app := locked.NewWebApp(resCh, errCh, done)
 		app.StartWeb(ctx)
 	} else {
 		fmt.Println("Invalid command. Use 'locked cli' or 'locked web'.")
