@@ -19,34 +19,32 @@ import (
 type cliApp struct {
 	secretService services.SecretService
 	currentFile   *os.File
-}
-
-// Реализация автодополнения команд
-type autoCompleter struct{}
-
-func (a autoCompleter) Do(line []rune, pos int) (newLine [][]rune, offset int) {
-	commands := []string{"add", "open", "close", "exit"}
-	for _, cmd := range commands {
-		if strings.HasPrefix(string(line), cmd) {
-			newLine = append(newLine, []rune(cmd))
-		}
-	}
-	return newLine, len(line)
+	rl            *readline.Instance
 }
 
 func NewCLIApp(resCh chan []byte, errCh chan error, done chan struct{}) *cliApp {
 	secretService := services.New(resCh, errCh, done)
+	completer := completer()
+
+	rl, err := readline.NewEx(&readline.Config{
+		Prompt:          "locked ~# ",
+		InterruptPrompt: "^C",
+		EOFPrompt:       "exit",
+		HistoryFile:     "/tmp/readline.tmp",
+		AutoComplete:    completer, // автодополнение
+	})
+	if err != nil {
+		return nil
+	}
+
 	return &cliApp{
 		secretService: secretService,
+		rl:            rl,
 	}
 }
 
-func (a *cliApp) StartCLI(ctx context.Context) error {
-	// Инициализация autocomplete с командами
-	commands := []string{"add", "open", "clear", "close", "del", "exit"}
-
-	// Создание обработчика для автодополнения
-	completer := readline.NewPrefixCompleter(
+func completer() *readline.PrefixCompleter {
+	return readline.NewPrefixCompleter(
 		readline.PcItem("add"),
 		readline.PcItem("open"),
 		readline.PcItem("clear"),
@@ -54,21 +52,9 @@ func (a *cliApp) StartCLI(ctx context.Context) error {
 		readline.PcItem("del"),
 		readline.PcItem("exit"),
 	)
+}
 
-	// Инициализируем readline
-	rl, err := readline.NewEx(&readline.Config{
-		Prompt:          "locked ~# ",
-		InterruptPrompt: "^C",
-		EOFPrompt:       "exit",
-		HistoryFile:     "/tmp/readline.tmp",
-		AutoComplete:    completer, // Поддержка автозаполнения
-	})
-	if err != nil {
-		return err
-	}
-
-	defer rl.Close()
-
+func (a *cliApp) StartCLI(ctx context.Context) error {
 	// Каналы для обработки ввода и ошибок
 	inputCh := make(chan string)
 	errCh := make(chan error)
@@ -84,20 +70,19 @@ func (a *cliApp) StartCLI(ctx context.Context) error {
 		}
 	}
 
-	fmt.Println("Welcome to the CLI Application! Type 'exit' to quit.")
+	fmt.Println("Welcome to LOCKED! Type 'help' to see available commands.")
 
 	for {
 		if a.currentFile != nil {
-			rl.SetPrompt(fmt.Sprintf("locked/%s ~# ", a.currentFile.Name()))
+			a.rl.SetPrompt(fmt.Sprintf("locked/%s ~# ", a.currentFile.Name()))
 		} else {
-			rl.SetPrompt("locked ~# ")
+			a.rl.SetPrompt("locked ~# ")
 		}
 
-		go readCmd(rl, inputCh, errCh)
+		// горутина для ввода данных
+		go readCmd(a.rl, inputCh, errCh)
 
 		select {
-		case <-ctx.Done(): // graceful shutdown
-			return nil
 		case input := <-inputCh: // обработка команды
 			command := strings.TrimSpace(input)
 			words := strings.Split(command, " ")
@@ -174,6 +159,10 @@ func (a *cliApp) StartCLI(ctx context.Context) error {
 func readCmd(rl *readline.Instance, inputCh chan string, errCh chan error) {
 	line, err := rl.Readline()
 	if err != nil {
+		if err == readline.ErrInterrupt { // ловим Ctrl+C
+			fmt.Println("Exiting...")
+			os.Exit(0)
+		}
 		if len(line) != 0 {
 			errCh <- err
 		}
