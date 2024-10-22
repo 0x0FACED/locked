@@ -3,7 +3,6 @@ package locked
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -11,15 +10,19 @@ import (
 	"time"
 
 	"github.com/0x0FACED/locked/internal/app/services"
-	"github.com/0x0FACED/locked/internal/core/models"
 	"github.com/chzyer/readline"
 	"golang.org/x/term"
 )
+
+var BASE_PKG = "secrets/"
 
 type cliApp struct {
 	secretService services.SecretService
 	currentFile   *os.File
 	rl            *readline.Instance
+	resCh         chan []byte
+	errCh         chan error
+	done          chan struct{}
 }
 
 func NewCLIApp(resCh chan []byte, errCh chan error, done chan struct{}) *cliApp {
@@ -33,6 +36,7 @@ func NewCLIApp(resCh chan []byte, errCh chan error, done chan struct{}) *cliApp 
 		HistoryFile:     "/tmp/readline.tmp",
 		AutoComplete:    completer, // автодополнение
 	})
+
 	if err != nil {
 		return nil
 	}
@@ -40,6 +44,9 @@ func NewCLIApp(resCh chan []byte, errCh chan error, done chan struct{}) *cliApp 
 	return &cliApp{
 		secretService: secretService,
 		rl:            rl,
+		resCh:         resCh,
+		errCh:         errCh,
+		done:          done,
 	}
 }
 
@@ -54,11 +61,21 @@ func completer() *readline.PrefixCompleter {
 	)
 }
 
-func (a *cliApp) StartCLI(ctx context.Context) error {
-	// Каналы для обработки ввода и ошибок
-	inputCh := make(chan string)
-	errCh := make(chan error)
+func (a *cliApp) StartCLI(ctx context.Context) {
 
+	// отдельная функция, просто бесконечный цикл для логина (пароль)
+	verify()
+
+	fmt.Println("~ ~ ~ welcome back, samurai ~ ~ ~")
+
+	// запускаем отдельную горутину для прослушивая результатов выполнения команд
+	// open, close, clear etc
+	go a.listen()
+
+	a.run(ctx)
+}
+
+func verify() {
 	for {
 		err := requestPassword()
 		if err != nil {
@@ -69,8 +86,11 @@ func (a *cliApp) StartCLI(ctx context.Context) error {
 			break
 		}
 	}
+}
 
-	fmt.Println("Welcome to LOCKED! Type 'help' to see available commands.")
+func (a *cliApp) run(ctx context.Context) {
+	inputCh := make(chan string)
+	errCh := make(chan error)
 
 	for {
 		if a.currentFile != nil {
@@ -84,74 +104,59 @@ func (a *cliApp) StartCLI(ctx context.Context) error {
 
 		select {
 		case input := <-inputCh: // обработка команды
-			command := strings.TrimSpace(input)
-			words := strings.Split(command, " ")
-			switch words[0] {
-			case "add": // добавление секрета
-				if a.checkFileStatus() != nil {
-					// никакой файл не открыт, добавлять некуда!
-					fmt.Println("You need to open any of your secret files or create one to keep a secret.")
-					fmt.Println("To open the file, type the following command: open filename.lkd")
-				} else {
-					// сет флагов для команды add
-					addCmd := flag.NewFlagSet("add", flag.ContinueOnError)
-
-					// флаги
-					// TODO: как-то это все структурировать в одном месте, а не при каждом вызове функции
-					name := addCmd.String("n", "", "Name of the secret")
-					desc := addCmd.String("d", "", "Description of the secret")
-					payload := addCmd.String("s", "", "Secret payload or file path")
-
-					// парсинг
-					if err := addCmd.Parse(words[1:]); err != nil {
-						fmt.Println("Error parsing flags:", err)
-						return nil
-					}
-
-					// проверяем, что обязательные флаги есть (они все обязательные лол)
-					if *name == "" || *desc == "" || *payload == "" {
-						fmt.Println("Usage: add -n <name> -d <description> -s <payload>")
-						return nil
-					}
-
-					// для удобства юзаем структуру параметров
-					params := models.AddSecretCmdParams{
-						Name:        *name,
-						Description: *desc,
-						Payload:     *payload, // это может быть путь к файлу или текстовый payload
-					}
-
-					// Вызываем метод для добавления секрета
-					a.secretService.Add(ctx, params)
-				}
-
-			case "open":
-				if len(words) != 2 {
-					fmt.Println("To open the file, type the following command: open filename.lkd")
-					continue
-				}
-				f, err := os.Open(words[1]) // заглушка
-				if err != nil {
-					fmt.Println("err:", err)
-				}
-				a.currentFile = f
-			case "clear": // очистка всего файла с секретами
-
-			case "close": // закрыть файл, но не приложение
-				err := a.currentFile.Close()
-				if err != nil {
-					fmt.Println("Error closing the file:", err)
-				}
-				a.currentFile = nil
-			case "del": // удалить секрет из файла
-			case "exit": // выход из приложения
-				fmt.Println("Exiting the application. Goodbye!")
-				a.currentFile.Close()
-				return nil
-			}
-
+			a.handleCommand(ctx, input)
 		case err := <-errCh: // ошибка при вводе команды
 			fmt.Println("Error reading input:", err)
+		}
+	}
+}
+
+func (a *cliApp) handleCommand(ctx context.Context, input string) {
+	command := strings.TrimSpace(input)
+	words := strings.Split(command, " ")
+	switch words[0] {
+	case "add": // добавление секрета
+		if a.checkFileStatus() != nil {
+			// никакой файл не открыт, добавлять некуда!
+			fmt.Println("You need to open any of your secret files or create one to keep a secret.")
+			fmt.Println("To open the file, type the following command: open filename.lkd")
+		} else {
+			go a.add(ctx, words) // щас в горутине отдельно, чтобы заблочить управление юзеру
+		}
+
+	case "open":
+		if len(words) != 2 {
+			fmt.Println("To open the file, type the following command: open filename.lkd")
+		}
+		f, err := os.Open(words[1]) // заглушка
+		if err != nil {
+			fmt.Println("err:", err)
+		}
+		a.currentFile = f
+	case "clear": // очистка всего файла с секретами
+
+	case "close": // закрыть файл, но не приложение
+		err := a.currentFile.Close()
+		if err != nil {
+			fmt.Println("Error closing the file:", err)
+		}
+		a.currentFile = nil
+	case "del": // удалить секрет из файла
+	case "exit": // выход из приложения
+		fmt.Println("Exiting the application. Goodbye!")
+		a.currentFile.Close()
+	}
+}
+
+func (a *cliApp) listen() {
+	for {
+		select {
+		case result := <-a.resCh:
+			fmt.Println("Result:", string(result)) // вывод результата
+		case err := <-a.errCh:
+			fmt.Println("Error:", err) // вывод ошибки
+		case <-a.done:
+			fmt.Println("Task completed!") // сигнал о завершении
 		}
 	}
 }
