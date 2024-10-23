@@ -2,9 +2,11 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/0x0FACED/locked/internal/app/services"
+	"github.com/0x0FACED/locked/internal/core/models"
 )
 
 // Вообще суть в том, что все таски будут идти в один канал, по сути формируя очередь
@@ -16,7 +18,7 @@ type Task struct {
 	// команда (add, open, close etc)
 	Command string
 	// аргументы (включая и флаги	)
-	Args []string
+	Args string
 }
 
 type WorkerPool struct {
@@ -25,13 +27,17 @@ type WorkerPool struct {
 
 	MaxWorkers int
 	TaskCh     chan Task
+
+	errCh chan error
 }
 
-func New(service services.SecretService, taskQueue chan Task) *WorkerPool {
+func New(service services.SecretService, taskQueue chan Task, errCh chan error) *WorkerPool {
 	return &WorkerPool{
 		secretService: service,
 		MaxWorkers:    10, // Временно
 		TaskCh:        taskQueue,
+		// чтобы вернуть ошибку сразу, если неправильная команда введена
+		errCh: errCh,
 	}
 }
 
@@ -53,9 +59,15 @@ func (p *WorkerPool) work(ctx context.Context) {
 	for task := range p.TaskCh {
 		switch task.Command {
 		case "add":
-			p.secretService.Add(ctx, task.Args)
+			p.secretService.Add(ctx, models.AddSecretCmdParams{})
 
+		case "open":
+			// пока что без валидации
+			p.secretService.Open(ctx, task.Args)
 			// Добавить остальные команды
+
+		default:
+			p.errCh <- errors.New("test error: unknown command")
 		}
 	}
 }
