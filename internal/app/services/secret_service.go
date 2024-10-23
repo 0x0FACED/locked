@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"os"
 
 	"github.com/0x0FACED/locked/internal/core/database"
 	"github.com/0x0FACED/locked/internal/core/encryption"
@@ -14,9 +15,12 @@ import (
 
 type SecretService interface {
 	Add(ctx context.Context, secret models.AddSecretCmdParams)
+	Open(ctx context.Context, filename string)
 }
 
 type secretService struct {
+	currentFile *os.File
+
 	zip   zip.Compressor
 	unzip zip.Decompressor
 
@@ -25,17 +29,31 @@ type secretService struct {
 
 	db database.Database
 
-	resCh chan []byte
+	resCh chan models.Result
 	errCh chan error
 	done  chan struct{}
 }
 
-func New(resCh chan []byte, errCh chan error, done chan struct{}) SecretService {
+func New(resCh chan models.Result, errCh chan error, done chan struct{}) SecretService {
 	return &secretService{
 		resCh: resCh,
 		errCh: errCh,
 		done:  done,
 	}
+}
+
+func (s *secretService) Open(ctx context.Context, filename string) {
+	f, err := os.Open(filename) // только для чтения открываем пока что
+	if err != nil {
+		s.errCh <- err
+	}
+	s.currentFile = f
+
+	res := models.Result{
+		Command: "open",
+		Data:    []byte(f.Name()),
+	}
+	s.resCh <- res
 }
 
 func (s *secretService) Add(ctx context.Context, secret models.AddSecretCmdParams) {
@@ -70,7 +88,7 @@ func (s *secretService) Add(ctx context.Context, secret models.AddSecretCmdParam
 			return
 		}
 
-		s.resCh <- buf.Bytes()
+		//s.resCh <- buf.Bytes()
 	}()
 
 }
