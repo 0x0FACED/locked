@@ -4,8 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-
-	"github.com/0x0FACED/locked/internal/core/models"
 )
 
 // Здесь мы обрабатываем флаги и вызываем метод сервиса
@@ -15,7 +13,7 @@ func (a *cliApp) add(ctx context.Context, args []string) {
 
 	// Надо ыб добавить флаг каокй-то, который будет указывать на фоновый режим. Если фоновый режим,
 	// то в горутине запускаем процесс, если же не фоновый, то блкокируем основной ввод и ждем.
-	
+
 	// флаги
 	name := addCmd.String("n", "", "Name of the secret")
 	desc := addCmd.String("d", "", "Description of the secret")
@@ -34,12 +32,12 @@ func (a *cliApp) add(ctx context.Context, args []string) {
 	}
 
 	// создание параметров команды
-	params := models.AddSecretCmdParams{
-		Name:        *name,
-		Description: *desc,
-		Payload:     *payload,
-	}
+	//params := models.AddSecretCmdParams{
+	//	Name:        *name,
+	//	Description: *desc,
+	//	Payload:     *payload,
+	//}
 
 	// вызов метода для добавления секрета
-	a.secretService.Add(ctx, params)
+	//a.secretService.Add(ctx, params)
 }
