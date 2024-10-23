@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/0x0FACED/locked/internal/app/locked"
+	"github.com/0x0FACED/locked/internal/core/models"
 )
 
 var (
@@ -24,9 +25,9 @@ func main() {
 	}
 
 	command := os.Args[1]
-	resCh := make(chan []byte, 10) // временно 10, потом думаю через конфиг передавать
-	errCh := make(chan error, 5)   // временно 5, потом думаю через конфиг передавать
-	done := make(chan struct{}, 2) // временно 2, потом думаю через конфиг передавать
+	resCh := make(chan models.Result, 10) // временно 10, потом думаю через конфиг передавать
+	errCh := make(chan error, 5)          // временно 5, потом думаю через конфиг передавать
+	done := make(chan struct{}, 2)        // временно 2, потом думаю через конфиг передавать
 
 	// Пока что так сделал, но это не совсем гуд, как мне кажется
 	if command == cli {
