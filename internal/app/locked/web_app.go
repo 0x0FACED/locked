@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/0x0FACED/locked/internal/app/services"
+	"github.com/0x0FACED/locked/internal/core/models"
 )
 
 type webApp struct {
@@ -12,7 +13,7 @@ type webApp struct {
 	currentFile   *os.File
 }
 
-func NewWebApp(resCh chan []byte, errCh chan error, done chan struct{}) *webApp {
+func NewWebApp(resCh chan models.Result, errCh chan error, done chan struct{}) *webApp {
 	secretService := services.New(resCh, errCh, done)
 	return &webApp{
 		secretService: secretService,
