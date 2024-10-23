@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/0x0FACED/locked/internal/app/services"
+	"github.com/0x0FACED/locked/internal/core/models"
+	"github.com/0x0FACED/locked/internal/core/worker"
 	"github.com/chzyer/readline"
 	"golang.org/x/term"
 )
@@ -17,17 +19,24 @@ import (
 var BASE_PKG = "secrets/"
 
 type cliApp struct {
-	secretService services.SecretService
-	currentFile   *os.File
-	rl            *readline.Instance
-	resCh         chan []byte
-	errCh         chan error
-	done          chan struct{}
+	currentFile string
+	rl          *readline.Instance
+
+	wp     *worker.WorkerPool
+	taskCh chan worker.Task
+
+	resCh chan models.Result
+	errCh chan error
+	done  chan struct{}
 }
 
-func NewCLIApp(resCh chan []byte, errCh chan error, done chan struct{}) *cliApp {
+func NewCLIApp(resCh chan models.Result, errCh chan error, done chan struct{}) *cliApp {
 	secretService := services.New(resCh, errCh, done)
 	completer := completer()
+
+	taskCh := make(chan worker.Task, 10) // 10 задач пока что пускай
+
+	wp := worker.New(secretService, taskCh, errCh) // создаем воркер пул
 
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt:          "locked ~# ",
@@ -42,14 +51,16 @@ func NewCLIApp(resCh chan []byte, errCh chan error, done chan struct{}) *cliApp 
 	}
 
 	return &cliApp{
-		secretService: secretService,
-		rl:            rl,
-		resCh:         resCh,
-		errCh:         errCh,
-		done:          done,
+		rl:     rl,     // rl для работы со строкой ввода
+		wp:     wp,     // вп будет чекать taskCh и обрабатывать задачи
+		taskCh: taskCh, // сюда сливать будем все задачи
+		resCh:  resCh,  // мб удалю
+		errCh:  errCh,  // мб удалю
+		done:   done,   // мб удалю
 	}
 }
 
+// автокомплит при вводе части команды и нажатии на tab
 func completer() *readline.PrefixCompleter {
 	return readline.NewPrefixCompleter(
 		readline.PcItem("add"),
@@ -61,10 +72,13 @@ func completer() *readline.PrefixCompleter {
 	)
 }
 
+// основной метод для запуска всего приложения
 func (a *cliApp) StartCLI(ctx context.Context) {
 
 	// отдельная функция, просто бесконечный цикл для логина (пароль)
 	verify()
+
+	a.wp.Start(ctx)
 
 	fmt.Println("~ ~ ~ welcome back, samurai ~ ~ ~")
 
@@ -93,20 +107,21 @@ func (a *cliApp) run(ctx context.Context) {
 	errCh := make(chan error)
 
 	for {
-		if a.currentFile != nil {
-			a.rl.SetPrompt(fmt.Sprintf("locked/%s ~# ", a.currentFile.Name()))
-		} else {
-			a.rl.SetPrompt("locked ~# ")
-		}
 
 		// горутина для ввода данных
 		go readCmd(a.rl, inputCh, errCh)
 
 		select {
 		case input := <-inputCh: // обработка команды
-			a.handleCommand(ctx, input)
+			a.handleCommand(ctx, input) // обрабатываем команду
 		case err := <-errCh: // ошибка при вводе команды
 			fmt.Println("Error reading input:", err)
+		}
+
+		if a.currentFile != "" {
+			a.rl.SetPrompt(fmt.Sprintf("locked/%s ~# ", a.currentFile))
+		} else {
+			a.rl.SetPrompt("locked ~# ")
 		}
 	}
 }
@@ -121,30 +136,48 @@ func (a *cliApp) handleCommand(ctx context.Context, input string) {
 			fmt.Println("You need to open any of your secret files or create one to keep a secret.")
 			fmt.Println("To open the file, type the following command: open filename.lkd")
 		} else {
-			go a.add(ctx, words) // щас в горутине отдельно, чтобы заблочить управление юзеру
+			go a.add(ctx, words) // щас в горутине отдельно, чтобы НЕ заблочить управление юзеру
 		}
 
 	case "open":
 		if len(words) != 2 {
 			fmt.Println("To open the file, type the following command: open filename.lkd")
+			break
 		}
-		f, err := os.Open(words[1]) // заглушка
-		if err != nil {
-			fmt.Println("err:", err)
+
+		task := worker.Task{
+			Command: words[0], // open
+			Args:    words[1],
 		}
-		a.currentFile = f
+
+		a.taskCh <- task
+		/*
+			f, err := os.Open(words[1]) // заглушка
+			if err != nil {
+				fmt.Println("err:", err)
+			}
+			a.currentFile = f
+		*/
 	case "clear": // очистка всего файла с секретами
 
 	case "close": // закрыть файл, но не приложение
-		err := a.currentFile.Close()
-		if err != nil {
-			fmt.Println("Error closing the file:", err)
-		}
-		a.currentFile = nil
+		/*
+			err := a.currentFile.Close()
+			if err != nil {
+				fmt.Println("Error closing the file:", err)
+			}
+		*/
+		a.currentFile = "" // xD закрыли)))
 	case "del": // удалить секрет из файла
 	case "exit": // выход из приложения
 		fmt.Println("Exiting the application. Goodbye!")
-		a.currentFile.Close()
+		/*
+			err := a.currentFile.Close()
+			if err != nil {
+				fmt.Println("Error closing the file:", err)
+			}
+		*/
+		os.Exit(0)
 	}
 }
 
@@ -152,7 +185,14 @@ func (a *cliApp) listen() {
 	for {
 		select {
 		case result := <-a.resCh:
-			fmt.Println("Result:", string(result)) // вывод результата
+			switch result.Command {
+			case "add":
+				// ..
+			case "open":
+				fmt.Printf("File %s opened. Press 'enter' to refresh.\n", string(result.Data))
+				a.currentFile = string(result.Data)
+				// остальные
+			}
 		case err := <-a.errCh:
 			fmt.Println("Error:", err) // вывод ошибки
 		case <-a.done:
@@ -191,7 +231,7 @@ func requestPassword() error {
 }
 
 func (a *cliApp) checkFileStatus() error {
-	if a.currentFile == nil {
+	if a.currentFile == "" {
 		return os.ErrClosed // немного неправильно, ибо в доке написано "file ALREADY closed", но пока что так
 	}
 	return nil
