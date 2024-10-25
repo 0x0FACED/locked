@@ -20,6 +20,6 @@ func NewWebApp(resCh chan models.Result, errCh chan error, done chan struct{}) *
 	}
 }
 
-func (a *webApp) StartWeb(ctx context.Context) error {
+func (a *webApp) StartWeb(ctx context.Context, isFirstRun bool) error {
 	panic("impl me")
 }
