@@ -2,18 +2,13 @@ package locked
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
-	"syscall"
-	"time"
 
 	"github.com/0x0FACED/locked/internal/app/services"
 	"github.com/0x0FACED/locked/internal/core/models"
-	"github.com/0x0FACED/locked/internal/core/worker"
 	"github.com/chzyer/readline"
-	"golang.org/x/term"
 )
 
 var BASE_PKG = "secrets/"
@@ -81,10 +76,18 @@ func completer() *readline.PrefixCompleter {
 }
 
 // основной метод для запуска всего приложения
-func (a *cliApp) StartCLI(ctx context.Context) {
-
-	// отдельная функция, просто бесконечный цикл для логина (пароль)
-	verify()
+func (a *cliApp) StartCLI(ctx context.Context, isFirstRun bool) {
+	if isFirstRun {
+		fmt.Println("~ ~ ~ welcome, samurai ~ ~ ~")
+		fmt.Println("~ ~ ~ Before you start, you need to create a password ~ ~ ~")
+		fmt.Println("~ ~ ~ !IMPORTANT! This password is your main key to all your secrets ~ ~ ~")
+		err := initApp()
+		if err != nil {
+			fmt.Println("error happened:", err)
+		}
+	} else {
+		verify()
+	}
 
 	//a.wp.Start(ctx)
 
@@ -95,19 +98,6 @@ func (a *cliApp) StartCLI(ctx context.Context) {
 	go a.listen()
 
 	a.run(ctx)
-}
-
-func verify() {
-	for {
-		err := requestPassword()
-		if err != nil {
-			fmt.Println("Incorrect password, try again")
-			time.Sleep(1 * time.Second)
-		} else {
-			fmt.Println("Successfully logged in!")
-			break
-		}
-	}
 }
 
 func (a *cliApp) run(ctx context.Context) {
@@ -233,21 +223,6 @@ func readCmd(rl *readline.Instance, inputCh chan string, errCh chan error) {
 		}
 	}
 	inputCh <- line
-}
-
-// запрашиваем ввод пароля
-func requestPassword() error {
-	fmt.Print("Enter master password: ")
-	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
-	if err != nil {
-		return err
-	}
-	fmt.Println() // Для переноса строки после ввода пароля
-	password := string(bytePassword)
-	if password == "admin" { // ВРЕМЕННО заглушка
-		return nil
-	}
-	return errors.New("incorrect") // TODO: сделать адекватно
 }
 
 func (a *cliApp) checkFileStatus() error {
