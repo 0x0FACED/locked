@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/0x0FACED/locked/internal/app/services"
@@ -11,7 +12,7 @@ import (
 	"github.com/chzyer/readline"
 )
 
-var BASE_PKG = "secrets/"
+var BASE_PKG = "secrets"
 
 type cliApp struct {
 	currentFile string
@@ -78,12 +79,12 @@ func completer() *readline.PrefixCompleter {
 // основной метод для запуска всего приложения
 func (a *cliApp) StartCLI(ctx context.Context, isFirstRun bool) {
 	if isFirstRun {
-		fmt.Println("~ ~ ~ welcome, samurai ~ ~ ~")
-		fmt.Println("~ ~ ~ Before you start, you need to create a password ~ ~ ~")
-		fmt.Println("~ ~ ~ !IMPORTANT! This password is your main key to all your secrets ~ ~ ~")
+		fmt.Println("~ welcome, samurai ~")
+		fmt.Println("~ Before you start, you need to create a password ~")
+		fmt.Println("~ !IMPORTANT! This password is your main key to all your secrets ~")
 		err := initApp()
 		if err != nil {
-			fmt.Println("error happened:", err)
+			fmt.Println("~ error happened:", err)
 		}
 	} else {
 		verify()
@@ -118,7 +119,7 @@ func (a *cliApp) run(ctx context.Context) {
 		case input := <-inputCh: // обработка команды
 			a.handleCommand(ctx, input) // обрабатываем команду
 		case err := <-errCh: // ошибка при вводе команды
-			fmt.Println("Error reading input:", err)
+			fmt.Println("~ Error reading input:", err)
 		case newPrompt := <-a.updPromptCh: // обновление промпта
 			a.rl.SetPrompt(newPrompt)
 			a.rl.Refresh() // перерисовка строки
@@ -127,15 +128,50 @@ func (a *cliApp) run(ctx context.Context) {
 	}
 }
 
+func isFileExists(filename string) bool {
+	if _, err := os.Stat(filepath.Join(secretsDir, filename)); err == nil {
+		fmt.Println("~ File with this name already exists")
+		return true
+	} else if !os.IsNotExist(err) {
+		// В случае ошибки, отличной от "файл не существует"
+		fmt.Println("~ Something went wrong with error:", err)
+		return false
+	}
+
+	return false
+}
+
+func createSecretFile(filename string) error {
+	// Если файл не существует, создаем его
+	fullName := filename + ".lkd"
+	file, err := os.Create(filepath.Join(secretsDir, fullName))
+	if err != nil {
+		return fmt.Errorf("failed to create file: %v", err)
+	}
+	defer file.Close()
+
+	fmt.Printf("~ File %s created successfully in %s\n", fullName, secretsDir)
+	return nil
+}
+
 func (a *cliApp) handleCommand(ctx context.Context, input string) {
 	command := strings.TrimSpace(input)
 	words := strings.Split(command, " ")
 	switch words[0] {
+	case "new":
+		if !isFileExists(words[1]) {
+			err := createSecretFile(words[1])
+			if err != nil {
+				fmt.Println("~ Error creating file with error:", err)
+				return
+			}
+
+		}
 	case "add": // добавление секрета
 		if a.checkFileStatus() != nil {
 			// никакой файл не открыт, добавлять некуда!
-			fmt.Println("You need to open any of your secret files or create one to keep a secret.")
-			fmt.Println("To open the file, type the following command: open filename.lkd")
+			fmt.Println("~ You need to open any of your secret files or create one to keep a secret.")
+			fmt.Println("~ To open the file, type the following command: open filename.lkd")
 		} else {
 			a.add(ctx, words)
 			/*task := worker.Task{
@@ -148,7 +184,7 @@ func (a *cliApp) handleCommand(ctx context.Context, input string) {
 
 	case "open":
 		if len(words) != 2 {
-			fmt.Println("To open the file, type the following command: open filename.lkd")
+			fmt.Println("~ To open the file, type the following command: open filename.lkd")
 			break
 		}
 
@@ -179,7 +215,7 @@ func (a *cliApp) handleCommand(ctx context.Context, input string) {
 		a.currentFile = "" // xD закрыли)))
 	case "del": // удалить секрет из файла
 	case "exit": // выход из приложения
-		fmt.Println("Exiting the application. Goodbye!")
+		fmt.Println("~ ~ ~ Exiting the application. Goodbye! ~ ~ ~")
 		/*
 			err := a.currentFile.Close()
 			if err != nil {
@@ -198,15 +234,15 @@ func (a *cliApp) listen() {
 			case "add":
 				// ..
 			case "open":
-				fmt.Printf("File %s opened.\n", string(result.Data))
+				fmt.Printf("~ File %s opened.\n", string(result.Data))
 				a.currentFile = string(result.Data)
 
 				a.updPromptCh <- fmt.Sprintf("locked/%s ~# ", a.currentFile)
 			}
 		case err := <-a.errCh:
-			fmt.Println("Error:", err) // вывод ошибки
+			fmt.Println("~ Error:", err) // вывод ошибки
 		case <-a.done:
-			fmt.Println("Task completed!") // сигнал о завершении
+			fmt.Println("~ Task completed!") // сигнал о завершении
 		}
 	}
 }
@@ -215,7 +251,7 @@ func readCmd(rl *readline.Instance, inputCh chan string, errCh chan error) {
 	line, err := rl.Readline()
 	if err != nil {
 		if err == readline.ErrInterrupt { // ловим Ctrl+C
-			fmt.Println("Exiting...")
+			fmt.Println("~ Exiting...")
 			os.Exit(0)
 		}
 		if len(line) != 0 {
