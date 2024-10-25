@@ -22,22 +22,27 @@ type cliApp struct {
 	currentFile string
 	rl          *readline.Instance
 
-	wp     *worker.WorkerPool
-	taskCh chan worker.Task
+	secretService services.SecretService
+
+	//wp     *worker.WorkerPool
+	//taskCh chan worker.Task
 
 	resCh chan models.Result
 	errCh chan error
 	done  chan struct{}
+
+	updPromptCh chan string
 }
 
 func NewCLIApp(resCh chan models.Result, errCh chan error, done chan struct{}) *cliApp {
 	secretService := services.New(resCh, errCh, done)
 	completer := completer()
 
-	taskCh := make(chan worker.Task, 10) // 10 задач пока что пускай
+	//taskCh := make(chan worker.Task, 10) // 10 задач пока что пускай
 
-	wp := worker.New(secretService, taskCh, errCh) // создаем воркер пул
+	//wp := worker.New(secretService, taskCh, errCh) // создаем воркер пул
 
+	updPromptCh := make(chan string)
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt:          "locked ~# ",
 		InterruptPrompt: "^C",
@@ -51,12 +56,15 @@ func NewCLIApp(resCh chan models.Result, errCh chan error, done chan struct{}) *
 	}
 
 	return &cliApp{
-		rl:     rl,     // rl для работы со строкой ввода
-		wp:     wp,     // вп будет чекать taskCh и обрабатывать задачи
-		taskCh: taskCh, // сюда сливать будем все задачи
-		resCh:  resCh,  // мб удалю
-		errCh:  errCh,  // мб удалю
-		done:   done,   // мб удалю
+		rl:            rl, // rl для работы со строкой ввода
+		secretService: secretService,
+		//wp:     wp,     // вп будет чекать taskCh и обрабатывать задачи
+		//taskCh: taskCh, // сюда сливать будем все задачи
+		resCh: resCh, // мб удалю
+		errCh: errCh, // мб удалю
+		done:  done,  // мб удалю
+
+		updPromptCh: updPromptCh,
 	}
 }
 
@@ -78,7 +86,7 @@ func (a *cliApp) StartCLI(ctx context.Context) {
 	// отдельная функция, просто бесконечный цикл для логина (пароль)
 	verify()
 
-	a.wp.Start(ctx)
+	//a.wp.Start(ctx)
 
 	fmt.Println("~ ~ ~ welcome back, samurai ~ ~ ~")
 
@@ -107,6 +115,11 @@ func (a *cliApp) run(ctx context.Context) {
 	errCh := make(chan error)
 
 	for {
+		if a.currentFile != "" {
+			a.rl.SetPrompt(fmt.Sprintf("locked/%s ~# ", a.currentFile))
+		} else {
+			a.rl.SetPrompt("locked ~# ")
+		}
 
 		// горутина для ввода данных
 		go readCmd(a.rl, inputCh, errCh)
@@ -116,13 +129,11 @@ func (a *cliApp) run(ctx context.Context) {
 			a.handleCommand(ctx, input) // обрабатываем команду
 		case err := <-errCh: // ошибка при вводе команды
 			fmt.Println("Error reading input:", err)
+		case newPrompt := <-a.updPromptCh: // обновление промпта
+			a.rl.SetPrompt(newPrompt)
+			a.rl.Refresh() // перерисовка строки
 		}
 
-		if a.currentFile != "" {
-			a.rl.SetPrompt(fmt.Sprintf("locked/%s ~# ", a.currentFile))
-		} else {
-			a.rl.SetPrompt("locked ~# ")
-		}
 	}
 }
 
@@ -136,7 +147,13 @@ func (a *cliApp) handleCommand(ctx context.Context, input string) {
 			fmt.Println("You need to open any of your secret files or create one to keep a secret.")
 			fmt.Println("To open the file, type the following command: open filename.lkd")
 		} else {
-			go a.add(ctx, words) // щас в горутине отдельно, чтобы НЕ заблочить управление юзеру
+			a.add(ctx, words)
+			/*task := worker.Task{
+				Command: words[0], // open
+				Args:    words[1],
+			}*/
+
+			//a.taskCh <- task
 		}
 
 	case "open":
@@ -145,12 +162,14 @@ func (a *cliApp) handleCommand(ctx context.Context, input string) {
 			break
 		}
 
-		task := worker.Task{
+		a.open(ctx, words[1])
+
+		/*task := worker.Task{
 			Command: words[0], // open
 			Args:    words[1],
-		}
+		}*/
 
-		a.taskCh <- task
+		//a.taskCh <- task
 		/*
 			f, err := os.Open(words[1]) // заглушка
 			if err != nil {
@@ -189,9 +208,10 @@ func (a *cliApp) listen() {
 			case "add":
 				// ..
 			case "open":
-				fmt.Printf("File %s opened. Press 'enter' to refresh.\n", string(result.Data))
+				fmt.Printf("File %s opened.\n", string(result.Data))
 				a.currentFile = string(result.Data)
-				// остальные
+
+				a.updPromptCh <- fmt.Sprintf("locked/%s ~# ", a.currentFile)
 			}
 		case err := <-a.errCh:
 			fmt.Println("Error:", err) // вывод ошибки
