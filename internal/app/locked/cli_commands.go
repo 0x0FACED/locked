@@ -41,3 +41,7 @@ func (a *cliApp) add(ctx context.Context, args []string) {
 	// вызов метода для добавления секрета
 	//a.secretService.Add(ctx, params)
 }
+
+func (a *cliApp) open(ctx context.Context, filename string) {
+	a.secretService.Open(ctx, filename)
+}
