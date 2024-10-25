@@ -13,6 +13,11 @@ import (
 	"golang.org/x/term"
 )
 
+const (
+	secretsDir = "secrets"
+	masterFile = "master_hash"
+)
+
 func initApp() error {
 	fmt.Print("Enter master password: ")
 	var masterPass string
@@ -25,17 +30,18 @@ func initApp() error {
 
 	hash := pbkdf2.Key([]byte(masterPass), salt, 10000, 32, sha256.New)
 
-	if err := os.MkdirAll("secrets", os.ModePerm); err != nil {
+	if err := os.MkdirAll(secretsDir, os.ModePerm); err != nil {
 		return err
 	}
 
-	filePath := filepath.Join("secrets", "master_hash")
+	filePath := filepath.Join(secretsDir, masterFile)
 	f, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
+	// salt + hash
 	if _, err := f.Write(append(salt, hash...)); err != nil {
 		return err
 	}
@@ -49,7 +55,7 @@ func initApp() error {
 }
 
 func readPasswordData() ([]byte, []byte, error) {
-	data, err := os.ReadFile(filepath.Join("secrets", "master_hash"))
+	data, err := os.ReadFile(filepath.Join(secretsDir, masterFile))
 	if err != nil {
 		return []byte{}, []byte{}, err
 	}
@@ -89,6 +95,7 @@ func compareHashes(hash1, hash2 []byte) bool {
 	if len(hash1) != len(hash2) {
 		return false
 	}
+
 	for i := range hash1 {
 		if hash1[i] != hash2[i] {
 			return false
