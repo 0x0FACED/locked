@@ -1,11 +1,18 @@
 package locked
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/binary"
+	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/0x0FACED/locked/internal/app/services"
 	"github.com/0x0FACED/locked/internal/core/models"
@@ -147,11 +154,83 @@ func isFileExists(filename string) bool {
 	return false
 }
 
-func createSecretFile(filename string) error {
+func createSecretFile(filename string) (string, error) {
 	// Если файл не существует, создаем его
-	fullName := filename + ".lkd"
+	fullName := filename + "." + EXTENSION
 	file, err := os.Create(filepath.Join(secretsDir, fullName))
 	if err != nil {
+		return "", fmt.Errorf("failed to create file: %v", err)
+	}
+
+	defer file.Close()
+
+	if err := writeHeader(file); err != nil {
+		return "", nil
+	}
+
+	return fullName, nil
+}
+
+func writeHeader(file *os.File) error {
+	h := header()
+
+	buf := new(bytes.Buffer)
+	if err := binary.Write(buf, binary.LittleEndian, h); err != nil {
+		return err
+	}
+
+	if _, err := file.Write(buf.Bytes()); err != nil {
+		return err
+	}
+
+	fmt.Println("File header written successfully.")
+	return nil
+}
+
+func getOwnerID() ([]byte, error) {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return nil, err
+	}
+	for _, iface := range interfaces {
+		if len(iface.HardwareAddr) > 0 {
+			hashed := sha256.Sum256(iface.HardwareAddr)
+			return hashed[:8], nil // Вернем первые 8 байт
+		}
+	}
+	return nil, errors.New("no valid MAC address found")
+}
+
+func nonce() ([12]byte, error) {
+	// Генерация nonce для заголовка
+	var nonce [12]byte
+	if _, err := rand.Read(nonce[:]); err != nil {
+		return [12]byte{}, err
+	}
+
+	return nonce, nil
+}
+
+func header() models.FileHeader {
+	ownerID, _ := getOwnerID()
+	currTime := uint64(time.Now().Unix())
+	nonce, _ := nonce()
+
+	return models.FileHeader{
+		Version:        1,
+		CompleteFlag:   1, // Завершено
+		OwnerID:        [8]byte(ownerID),
+		SecretCount:    0,          // Количество секретов
+		CreatedAt:      currTime,   // Текущая временная метка
+		ModifiedAt:     currTime,   // Текущая временная метка
+		DataSize:       0,          // Размер данных
+		EncryptionAlgo: 0x01,       // AES-256 GCM
+		Reserved:       [13]byte{}, // Заполняем резерв
+		Nonce:          nonce,      // Генерируем nonce
+		Checksum:       [32]byte{}, // Контрольная сумма (изначально пусто)
+		Reserved2:      [32]byte{}, // Дополнительное резервное место
+	}
+}
 		return fmt.Errorf("failed to create file: %v", err)
 	}
 	defer file.Close()
@@ -166,12 +245,13 @@ func (a *cliApp) handleCommand(ctx context.Context, input string) {
 	switch words[0] {
 	case "new":
 		if !isFileExists(words[1]) {
-			err := createSecretFile(words[1])
+			fullName, err := createSecretFile(words[1])
 			if err != nil {
 				fmt.Println("~ Error creating file with error:", err)
 				return
 			}
 
+			fmt.Printf("~ File %s created successfully in %s\n", fullName, secretsDir)
 		}
 	case "add": // добавление секрета
 		if a.checkFileStatus() != nil {
