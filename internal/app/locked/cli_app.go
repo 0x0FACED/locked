@@ -67,6 +67,8 @@ func NewCLIApp(resCh chan models.Result, errCh chan error, done chan struct{}) *
 // автокомплит при вводе части команды и нажатии на tab
 func completer() *readline.PrefixCompleter {
 	return readline.NewPrefixCompleter(
+		readline.PcItem("new"),
+		readline.PcItem("ls"),
 		readline.PcItem("add"),
 		readline.PcItem("open"),
 		readline.PcItem("clear"),
