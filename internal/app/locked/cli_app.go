@@ -12,6 +12,9 @@ import (
 	"github.com/chzyer/readline"
 )
 
+const VESRION = uint8(1) // пишем в header в первую очередь версию
+const EXTENSION = "lkd"
+
 var BASE_PKG = "secrets"
 
 type cliApp struct {
@@ -131,7 +134,8 @@ func (a *cliApp) run(ctx context.Context) {
 }
 
 func isFileExists(filename string) bool {
-	if _, err := os.Stat(filepath.Join(secretsDir, filename)); err == nil {
+	fullName := filename + "." + EXTENSION
+	if _, err := os.Stat(filepath.Join(secretsDir, fullName)); err == nil {
 		fmt.Println("~ File with this name already exists")
 		return true
 	} else if !os.IsNotExist(err) {
