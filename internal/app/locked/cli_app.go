@@ -231,11 +231,40 @@ func header() models.FileHeader {
 		Reserved2:      [32]byte{}, // Дополнительное резервное место
 	}
 }
-		return fmt.Errorf("failed to create file: %v", err)
+
+func readFileHeader(filename string) error {
+	// Открываем файл
+	file, err := os.Open(filename)
+	if err != nil {
+		return err
 	}
 	defer file.Close()
 
-	fmt.Printf("~ File %s created successfully in %s\n", fullName, secretsDir)
+	// Создаем переменную для заголовка
+	var header models.FileHeader
+
+	// Читаем заголовок из файла
+	if err := binary.Read(file, binary.LittleEndian, &header); err != nil {
+		return err
+	}
+
+	// Выводим все поля заголовка и их размеры
+	fmt.Printf("File Header Details:\n")
+	fmt.Printf("Version: %d (%d bytes)\n", header.Version, 1)
+	fmt.Printf("CompleteFlag: %d (%d bytes)\n", header.CompleteFlag, 1)
+	fmt.Printf("OwnerID: %x (%d bytes)\n", header.OwnerID, 8)
+	fmt.Printf("SecretCount: %d (%d bytes)\n", header.SecretCount, 4)
+	fmt.Printf("CreatedAt: %d (%d bytes)\n", header.CreatedAt, 8)
+	fmt.Printf("ModifiedAt: %d (%d bytes)\n", header.ModifiedAt, 8)
+	fmt.Printf("DataSize: %d (%d bytes)\n", header.DataSize, 8)
+	fmt.Printf("EncryptionAlgo: %d (%d bytes)\n", header.EncryptionAlgo, 1)
+	fmt.Printf("Nonce: %x (%d bytes)\n", header.Nonce, 12)
+	fmt.Printf("Checksum: %x (%d bytes)\n", header.Checksum, 32)
+	fmt.Printf("Reserved2: %x (%d bytes)\n", header.Reserved2, 32)
+
+	// Выводим общий размер заголовка
+	fmt.Printf("Total Header Size: %d bytes\n", binary.Size(header))
+
 	return nil
 }
 
@@ -252,6 +281,9 @@ func (a *cliApp) handleCommand(ctx context.Context, input string) {
 			}
 
 			fmt.Printf("~ File %s created successfully in %s\n", fullName, secretsDir)
+
+			readFileHeader("secrets/" + fullName)
+
 		}
 	case "add": // добавление секрета
 		if a.checkFileStatus() != nil {
