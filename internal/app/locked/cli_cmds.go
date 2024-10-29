@@ -45,3 +45,7 @@ func (a *cliApp) add(ctx context.Context, args []string) {
 func (a *cliApp) open(ctx context.Context, filename string) {
 	a.secretService.Open(ctx, filename)
 }
+
+func (a *cliApp) createSecretFile(ctx context.Context, filename string) {
+	a.secretService.CreateSecretFile(ctx, filename)
+}

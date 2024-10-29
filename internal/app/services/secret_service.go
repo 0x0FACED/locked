@@ -13,9 +13,15 @@ import (
 	"github.com/0x0FACED/locked/internal/core/models"
 )
 
+const (
+	EXTENSION   = "lkd"
+	SECRETS_DIR = "secrets"
+)
+
 type SecretService interface {
 	Add(ctx context.Context, secret models.AddSecretCmdParams)
 	Open(ctx context.Context, filename string)
+	CreateSecretFile(ctx context.Context, filename string)
 }
 
 type secretService struct {

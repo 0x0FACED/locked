@@ -273,18 +273,11 @@ func (a *cliApp) handleCommand(ctx context.Context, input string) {
 	words := strings.Split(command, " ")
 	switch words[0] {
 	case "new":
-		if !isFileExists(words[1]) {
-			fullName, err := createSecretFile(words[1])
-			if err != nil {
-				fmt.Println("~ Error creating file with error:", err)
-				return
-			}
-
-			fmt.Printf("~ File %s created successfully in %s\n", fullName, secretsDir)
-
-			readFileHeader("secrets/" + fullName)
-
+		if len(words) != 2 {
+			fmt.Println("~ To create a file type the following command: new filename")
+			return
 		}
+		a.createSecretFile(ctx, words[1])
 	case "add": // добавление секрета
 		if a.checkFileStatus() != nil {
 			// никакой файл не открыт, добавлять некуда!
@@ -349,10 +342,13 @@ func (a *cliApp) listen() {
 		select {
 		case result := <-a.resCh:
 			switch result.Command {
+			case "new":
+				fmt.Printf("~ File %s successfully created\n", string(result.Data))
+				a.rl.Refresh()
 			case "add":
 				// ..
 			case "open":
-				fmt.Printf("~ File %s opened.\n", string(result.Data))
+				fmt.Printf("~ File %s opened\n", string(result.Data))
 				a.currentFile = string(result.Data)
 
 				a.updPromptCh <- fmt.Sprintf("locked/%s ~# ", a.currentFile)
