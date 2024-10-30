@@ -33,8 +33,6 @@ type SecretService interface {
 }
 
 type secretService struct {
-	currentFile *os.File
-
 	zip   zip.Compressor
 	unzip zip.Decompressor
 
@@ -61,7 +59,6 @@ func (s *secretService) Open(ctx context.Context, filename string) {
 	if err != nil {
 		s.errCh <- err
 	}
-	s.currentFile = f
 
 	res := models.Result{
 		Command: "open",
