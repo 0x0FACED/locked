@@ -170,6 +170,36 @@ func header() models.FileHeader {
 	}
 }
 
+func isFileExists(filename string) (os.FileInfo, error) {
+	// проверяем состояние файла
+	fileInfo, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		// не существует
+		return nil, errors.New("not exists") // урааа, говнокод!
+	} else if err != nil {
+		// другая ошибка (доступа, например)
+		return nil, err
+	}
+
+	// удостовериться, что не директория
+	if fileInfo.IsDir() {
+		return nil, errors.New("not a file")
+	}
+
+	// все гуд, отдаем fileInfo
+	return fileInfo, nil
+}
+
+func readFile(filename string) ([]byte, error) {
+	// Читаем содержимое файла в массив байтов
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %v", err)
+	}
+
+	return data, nil
+}
+
 func (s *secretService) Add(ctx context.Context, secret models.AddSecretCmdParams) {
 	go func() {
 		// zip
