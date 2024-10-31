@@ -17,10 +17,13 @@ type SecretSize uint64
 type SecretPayload []byte
 
 const (
-	Unknown SecretType = iota
-	Text
-	Txt
-	Archive
-	Video
-	Image
+	Unknown    SecretType = iota // неизвестный тип
+	TextFile                     // текст, например txt, csv и т.д.
+	Text                         // простой текст
+	Document                     // документы, например .md, .docx, .pdf и т.д.
+	Archive                      // архивы, например .zip, .tar, .rar и т.д.
+	Video                        // видео, например .mp4, .avi и т.д.
+	Image                        // изображения
+	Audio                        // аудио
+	Executable                   // исполняемые файлы, например .exe, .bin и т.д.
 )
