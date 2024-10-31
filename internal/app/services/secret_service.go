@@ -19,6 +19,7 @@ import (
 	"github.com/0x0FACED/locked/internal/core/database"
 	"github.com/0x0FACED/locked/internal/core/encryption"
 	"github.com/0x0FACED/locked/internal/core/models"
+	"github.com/0x0FACED/locked/internal/core/models/types"
 )
 
 const (
@@ -201,38 +202,74 @@ func readFile(filename string) ([]byte, error) {
 }
 
 func (s *secretService) Add(ctx context.Context, secret models.AddSecretCmdParams) {
-	go func() {
-		// zip
-		// enc
-		// open file
-		// write header
-		// write data
-		// close file
 
-		// zip.Compress(ctx, secret.Payload, s.resCh<-, s.errCh<-)
-		// enc.Encrypt(ctx, s.resCh, s.errCh<-)
+	type serialize struct {
+		Offset    uint64
+		Name      *string
+		Desc      *string
+		Type      types.SecretType
+		CreatedAt uint64
+		Size      uint64
+		Payload   []byte
+	}
 
-		jsonData, err := json.Marshal(secret)
+	var ser serialize
+
+	ser.Offset = s.db.Offset()
+	ser.Name = secret.Name
+	ser.Desc = secret.Description
+	ser.CreatedAt = uint64(time.Now().Unix())
+	if secret.IsFile {
+		fInfo, err := isFileExists(*secret.Name)
 		if err != nil {
 			s.errCh <- err
 			return
 		}
 
-		var buf bytes.Buffer
-		gzipWriter := gzip.NewWriter(&buf)
+		ser.Size = uint64(fInfo.Size()) // сейвим исходный размер
 
-		_, err = gzipWriter.Write(jsonData)
+		data, err := readFile(*secret.Name) // получаем байтовый слайс
+
 		if err != nil {
 			s.errCh <- err
 			return
 		}
 
-		if err := gzipWriter.Close(); err != nil {
-			s.errCh <- err
-			return
-		}
+		ser.Payload = data
+	} else {
+		ser.Payload = []byte(*secret.Name)
+	}
+	// serialize
+	// zip
+	// enc
+	// open file
+	// write header
+	// write data
+	// close file
 
-		//s.resCh <- buf.Bytes()
-	}()
+	// zip.Compress(ctx, secret.Payload, s.resCh<-, s.errCh<-)
+	// enc.Encrypt(ctx, s.resCh, s.errCh<-)
+
+	jsonData, err := json.Marshal(secret)
+	if err != nil {
+		s.errCh <- err
+		return
+	}
+
+	var buf bytes.Buffer
+	gzipWriter := gzip.NewWriter(&buf)
+
+	_, err = gzipWriter.Write(jsonData)
+	if err != nil {
+		s.errCh <- err
+		return
+	}
+
+	if err := gzipWriter.Close(); err != nil {
+		s.errCh <- err
+		return
+	}
+
+	//s.resCh <- buf.Bytes()
 
 }
