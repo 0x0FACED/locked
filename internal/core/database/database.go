@@ -8,7 +8,8 @@ import (
 )
 
 type helper interface {
-	Offset() int64
+	Offset() uint64
+	Count() uint8
 }
 
 // Интерфейс для работы с файлами (чтение файла целиком, запись в файл,
@@ -34,9 +35,14 @@ type Database interface {
 
 type fileDatabase struct {
 	currentFile *os.File
-	currPos     int64
+	currPos     uint64
+	secretCnt   uint8
 }
 
-func (d *fileDatabase) Offset() int64 {
+func (d *fileDatabase) Offset() uint64 {
 	return d.currPos
+}
+
+func (d *fileDatabase) Count() uint8 {
+	return d.secretCnt
 }
