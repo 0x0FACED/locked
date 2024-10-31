@@ -69,7 +69,7 @@ func (s *secretService) Open(ctx context.Context, filename string) {
 }
 
 func (s *secretService) CreateSecretFile(ctx context.Context, filename string) {
-	if isFileExists(filename) {
+	if isSecretFileExists(filename) {
 		s.errCh <- errors.New("file already exists")
 		return
 	}
@@ -96,7 +96,7 @@ func (s *secretService) CreateSecretFile(ctx context.Context, filename string) {
 	s.resCh <- res
 }
 
-func isFileExists(filename string) bool {
+func isSecretFileExists(filename string) bool {
 	fullName := filename + "." + EXTENSION
 	if _, err := os.Stat(filepath.Join(SECRETS_DIR, fullName)); err == nil {
 		fmt.Println("~ File with this name already exists")
