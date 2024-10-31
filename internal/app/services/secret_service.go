@@ -8,12 +8,13 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"mime"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/0x0FACED/locked/internal/core/database"
@@ -199,6 +200,47 @@ func readFile(filename string) ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+func fileType(filename string) types.SecretType {
+	ext := strings.ToLower(filepath.Ext(filename))
+	mimeType := mime.TypeByExtension(ext)
+
+	switch {
+	case strings.HasPrefix(mimeType, "text/"):
+		return types.TextFile
+	case strings.HasPrefix(mimeType, "image/"):
+		return types.Image
+	case strings.HasPrefix(mimeType, "video/"):
+		return types.Video
+	case strings.HasPrefix(mimeType, "audio/"):
+		return types.Audio
+	case strings.HasPrefix(mimeType, "application/"):
+		switch {
+		case strings.Contains(mimeType, "pdf") ||
+			strings.Contains(mimeType, "msword") ||
+			strings.Contains(mimeType, "vnd.ms-excel") ||
+			strings.Contains(mimeType, "vnd.openxmlformats-officedocument") ||
+			strings.Contains(mimeType, "rtf") ||
+			strings.Contains(mimeType, "postscript"):
+			return types.Document
+		case strings.Contains(mimeType, "zip") ||
+			strings.Contains(mimeType, "x-tar") ||
+			strings.Contains(mimeType, "x-rar-compressed") ||
+			strings.Contains(mimeType, "x-7z-compressed") ||
+			strings.Contains(mimeType, "x-bzip2") ||
+			strings.Contains(mimeType, "x-gzip"):
+			return types.Archive
+		case strings.Contains(mimeType, "x-msdownload") ||
+			strings.Contains(mimeType, "x-executable") ||
+			strings.Contains(mimeType, "octet-stream"):
+			return types.Executable
+		default:
+			return types.Unknown
+		}
+	default:
+		return types.Unknown
+	}
 }
 
 func (s *secretService) Add(ctx context.Context, secret models.AddSecretCmdParams) {
