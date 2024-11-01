@@ -298,30 +298,34 @@ func (s *secretService) Add(ctx context.Context, secret models.AddSecretCmdParam
 		return
 	}
 
+	// вынести потом в zipper
 	var buf bytes.Buffer
+	// записываем метаданные секрета
+	buf.Write(serialized[:PAYLOAD_START])
 	gzipWriter := gzip.NewWriter(&buf)
 
-	_, err = gzipWriter.Write(serialized)
+	// сжимаем только payload и записываем к буферу
+	_, err = gzipWriter.Write(serialized[PAYLOAD_START:])
 	if err != nil {
 		s.errCh <- err
 		return
 	}
 
+	zipped := buf.Bytes()
+
+	// закрываем сразу сами руками
 	if err := gzipWriter.Close(); err != nil {
 		s.errCh <- err
 		return
 	}
 
-	// serialize +
-	// zip +
-	// enc
-	// open file
-	// write data
-	// close file
+	encrypted, err := s.enc.Encrypt(ctx, zipped[PAYLOAD_START:]) // с 218, потому что шифруем ТОЛЬКО payload
+	if err != nil {
+		s.errCh <- err
+		return
+	}
 
-	// zip.Compress(ctx, secret.Payload, s.resCh<-, s.errCh<-)
-	// enc.Encrypt(ctx, s.resCh, s.errCh<-)
+	zipped = append(zipped[:PAYLOAD_START], encrypted...)
 
-	//s.resCh <- buf.Bytes()
-
+	// Далее по идее zipped надо передать в слой БД и там уже должна быть запись в файл
 }
