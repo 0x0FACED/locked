@@ -26,6 +26,8 @@ import (
 const (
 	EXTENSION   = "lkd"
 	SECRETS_DIR = "secrets"
+
+	PAYLOAD_START = 218
 )
 
 type SecretService interface {
@@ -50,8 +52,10 @@ type secretService struct {
 	done  chan struct{}
 }
 
-func New(resCh chan models.Result, errCh chan error, done chan struct{}) SecretService {
+func New(key []byte, nonce [12]byte, resCh chan models.Result, errCh chan error, done chan struct{}) SecretService {
+	enc := encryption.NewAesEncryptor(key, nonce)
 	return &secretService{
+		enc:   enc,
 		resCh: resCh,
 		errCh: errCh,
 		done:  done,
