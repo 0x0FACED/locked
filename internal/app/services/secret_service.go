@@ -43,6 +43,8 @@ type secretService struct {
 
 	db database.Database
 
+	nonce [12]byte
+
 	resCh chan models.Result
 	errCh chan error
 	done  chan struct{}
@@ -246,7 +248,7 @@ func fileType(filename string) types.SecretType {
 func (s *secretService) Add(ctx context.Context, secret models.AddSecretCmdParams) {
 	var ser models.SecretRecord
 	// offset
-	ser.Offset = types.SecretOffset(s.db.Offset())
+	ser.Offset = s.db.Offset()
 
 	// шаманим с name, чтобы из *string сделать [64]byte
 	name := [64]byte{}
@@ -259,7 +261,7 @@ func (s *secretService) Add(ctx context.Context, secret models.AddSecretCmdParam
 	ser.Description = desc
 
 	// тип и дата (TODO: тип добавить)
-	ser.CreatedAt = types.SecretCreatedAt(uint64(time.Now().Unix()))
+	ser.CreatedAt = uint64(time.Now().Unix())
 
 	if secret.IsFile {
 		fInfo, err := isFileExists(*secret.Name)
@@ -268,7 +270,7 @@ func (s *secretService) Add(ctx context.Context, secret models.AddSecretCmdParam
 			return
 		}
 
-		ser.Size = types.SecretSize(uint64(fInfo.Size()))
+		ser.Size = uint64(fInfo.Size())
 
 		data, err := readFile(*secret.Name)
 		if err != nil {
@@ -276,13 +278,13 @@ func (s *secretService) Add(ctx context.Context, secret models.AddSecretCmdParam
 			return
 		}
 
-		ser.Type = fileType(fInfo.Name())
+		ser.Type = uint8(fileType(fInfo.Name()))
 
 		ser.Payload = data
 	} else {
-		ser.Type = types.Text
+		ser.Type = uint8(types.Text)
 		ser.Payload = []byte(*secret.Name)
-		ser.Size = types.SecretSize(uint64(len(ser.Payload))) // Размер текста
+		ser.Size = uint64(len(ser.Payload)) // Размер текста
 	}
 
 	// Сериализация структуры
@@ -291,15 +293,6 @@ func (s *secretService) Add(ctx context.Context, secret models.AddSecretCmdParam
 		s.errCh <- err
 		return
 	}
-	// serialize +
-	// zip +
-	// enc
-	// open file
-	// write data
-	// close file
-
-	// zip.Compress(ctx, secret.Payload, s.resCh<-, s.errCh<-)
-	// enc.Encrypt(ctx, s.resCh, s.errCh<-)
 
 	var buf bytes.Buffer
 	gzipWriter := gzip.NewWriter(&buf)
@@ -314,6 +307,16 @@ func (s *secretService) Add(ctx context.Context, secret models.AddSecretCmdParam
 		s.errCh <- err
 		return
 	}
+
+	// serialize +
+	// zip +
+	// enc
+	// open file
+	// write data
+	// close file
+
+	// zip.Compress(ctx, secret.Payload, s.resCh<-, s.errCh<-)
+	// enc.Encrypt(ctx, s.resCh, s.errCh<-)
 
 	//s.resCh <- buf.Bytes()
 
