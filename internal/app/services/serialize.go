@@ -15,9 +15,6 @@ func Serialize(ctx context.Context, record models.SecretRecord) ([]byte, error) 
 	if err := binary.Write(buf, binary.LittleEndian, record.Offset); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(buf, binary.LittleEndian, record.ID); err != nil {
-		return nil, err
-	}
 	if _, err := buf.Write(record.Name[:]); err != nil {
 		return nil, err
 	}
