@@ -13,10 +13,12 @@ import (
 	"mime"
 	"net"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/0x0FACED/locked/cmd"
 	"github.com/0x0FACED/locked/internal/core/database"
 	"github.com/0x0FACED/locked/internal/core/encryption"
 	"github.com/0x0FACED/locked/internal/core/models"
@@ -54,7 +56,9 @@ type secretService struct {
 
 func New(key []byte, nonce [12]byte, resCh chan models.Result, errCh chan error, done chan struct{}) SecretService {
 	enc := encryption.NewAesEncryptor(key, nonce)
+	db := database.NewFileDatabase()
 	return &secretService{
+		db:    db,
 		enc:   enc,
 		resCh: resCh,
 		errCh: errCh,
@@ -63,13 +67,15 @@ func New(key []byte, nonce [12]byte, resCh chan models.Result, errCh chan error,
 }
 
 func (s *secretService) Open(ctx context.Context, filename string) {
-	f, err := os.Open(filename) // только для чтения открываем пока что
+	filepath := path.Join(SECRETS_DIR, filename)
+	f, err := os.Open(filepath) // только для чтения открываем пока что
 	if err != nil {
 		s.errCh <- err
+		return
 	}
 
 	res := models.Result{
-		Command: "open",
+		Command: cmd.OPEN,
 		Data:    []byte(f.Name()),
 	}
 
@@ -97,7 +103,7 @@ func (s *secretService) CreateSecretFile(ctx context.Context, filename string) {
 	}
 
 	res := models.Result{
-		Command: "new",
+		Command: cmd.NEW,
 		Data:    []byte(filename),
 	}
 
