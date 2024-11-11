@@ -5,22 +5,23 @@ import (
 	"errors"
 	"flag"
 
+	"github.com/0x0FACED/locked/cmd"
 	"github.com/0x0FACED/locked/internal/core/models"
 )
 
 // Здесь мы обрабатываем флаги и вызываем метод сервиса
 func (a *cliApp) add(ctx context.Context, args []string) {
 	// Создание и парсинг флагов для команды add
-	addCmd := flag.NewFlagSet("add", flag.ContinueOnError)
+	addCmd := flag.NewFlagSet(cmd.ADD, flag.ContinueOnError)
 
 	// Надо ыб добавить флаг каокй-то, который будет указывать на фоновый режим. Если фоновый режим,
 	// то в горутине запускаем процесс, если же не фоновый, то блкокируем основной ввод и ждем.
 
 	// флаги
-	name := flag.String("n", "", "Name of the secret")
-	desc := flag.String("d", "", "Description of the secret")
-	secretText := flag.String("s", "", "Secret text data")
-	secretFile := flag.String("p", "", "Path to file containing secret")
+	name := addCmd.String("n", "", "Name of the secret")
+	desc := addCmd.String("d", "", "Description of the secret")
+	secretText := addCmd.String("s", "", "Secret text data")
+	secretFile := addCmd.String("p", "", "Path to file containing secret")
 
 	// парсинг аргументов
 	if err := addCmd.Parse(args); err != nil {
@@ -28,7 +29,7 @@ func (a *cliApp) add(ctx context.Context, args []string) {
 		return
 	}
 
-	if *secretText != "" && *secretFile != "" {
+	if *secretText == "" && *secretFile == "" {
 		a.errCh <- errors.New("~ Error: Please specify only one of -s (secret text) or -p (secret file path)")
 		return
 	}
