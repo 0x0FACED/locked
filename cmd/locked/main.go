@@ -45,7 +45,7 @@ func main() {
 		app := locked.NewWebApp(resCh, errCh, done)
 		app.StartWeb(ctx, isFirst)
 	} else {
-		fmt.Println("Invalid command. Use 'locked cli' or 'locked web'.")
+		fmt.Println("~ Invalid command. Use 'locked cli' or 'locked web'.")
 		os.Exit(1)
 	}
 }
