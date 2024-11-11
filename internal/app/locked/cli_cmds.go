@@ -8,16 +8,6 @@ import (
 	"github.com/0x0FACED/locked/internal/core/models"
 )
 
-const (
-	CLOSE = "close"
-	ADD   = "add"
-	OPEN  = "open"
-	CLEAR = "clear"
-	EXIT  = "exit"
-	NEW   = "new"
-	DEL   = "del"
-)
-
 // Здесь мы обрабатываем флаги и вызываем метод сервиса
 func (a *cliApp) add(ctx context.Context, args []string) {
 	// Создание и парсинг флагов для команды add
