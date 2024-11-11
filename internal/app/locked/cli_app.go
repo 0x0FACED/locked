@@ -109,15 +109,15 @@ func (a *cliApp) run(ctx context.Context) {
 	inputCh := make(chan string)
 	errCh := make(chan error)
 
+	// горутина для ввода данных
+	go readCmd(a.rl, inputCh, errCh)
+
 	for {
 		if a.currentFile != "" {
 			a.rl.SetPrompt(fmt.Sprintf("locked/%s ~# ", a.currentFile))
 		} else {
 			a.rl.SetPrompt("locked ~# ")
 		}
-
-		// горутина для ввода данных
-		go readCmd(a.rl, inputCh, errCh)
 
 		select {
 		case input := <-inputCh: // обработка команды
@@ -262,17 +262,19 @@ func (a *cliApp) listen() {
 }
 
 func readCmd(rl *readline.Instance, inputCh chan string, errCh chan error) {
-	line, err := rl.Readline()
-	if err != nil {
-		if err == readline.ErrInterrupt { // ловим Ctrl+C
-			fmt.Println("~ Exiting...")
-			os.Exit(0)
+	for {
+		line, err := rl.Readline()
+		if err != nil {
+			if err == readline.ErrInterrupt { // ловим Ctrl+C
+				fmt.Println("~ Exiting...")
+				os.Exit(0)
+			}
+			if len(line) != 0 {
+				errCh <- err
+			}
 		}
-		if len(line) != 0 {
-			errCh <- err
-		}
+		inputCh <- line
 	}
-	inputCh <- line
 }
 
 func (a *cliApp) checkFileStatus() error {
