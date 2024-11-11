@@ -328,4 +328,16 @@ func (s *secretService) Add(ctx context.Context, secret models.AddSecretCmdParam
 	zipped = append(zipped[:PAYLOAD_START], encrypted...)
 
 	// Далее по идее zipped надо передать в слой БД и там уже должна быть запись в файл
+
+	err = s.db.Write(ctx, zipped)
+
+	if err != nil {
+		s.errCh <- err
+		return
+	}
+
+	s.resCh <- models.Result{
+		Command: cmd.ADD,
+		Data:    []byte("added"), // вркменно
+	}
 }
