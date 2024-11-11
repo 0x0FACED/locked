@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/0x0FACED/locked/cmd"
 	"github.com/0x0FACED/locked/internal/app/services"
 	"github.com/0x0FACED/locked/internal/core/models"
 	"github.com/chzyer/readline"
@@ -33,7 +34,7 @@ type cliApp struct {
 }
 
 func NewCLIApp(resCh chan models.Result, errCh chan error, done chan struct{}) *cliApp {
-	secretService := services.New(resCh, errCh, done)
+	secretService := services.New([]byte{}, [12]byte{}, resCh, errCh, done)
 	completer := completer()
 
 	//taskCh := make(chan worker.Task, 10) // 10 задач пока что пускай
@@ -172,19 +173,19 @@ func (a *cliApp) handleCommand(ctx context.Context, input string) {
 	command := strings.TrimSpace(input)
 	words := strings.Split(command, " ")
 	switch words[0] {
-	case "new":
+	case cmd.NEW:
 		if len(words) != 2 {
 			fmt.Println("~ To create a file type the following command: new filename")
 			return
 		}
 		a.createSecretFile(ctx, words[1])
-	case "add": // добавление секрета
+	case cmd.ADD: // добавление секрета
 		if a.checkFileStatus() != nil {
 			// никакой файл не открыт, добавлять некуда!
 			fmt.Println("~ You need to open any of your secret files or create one to keep a secret.")
 			fmt.Println("~ To open the file, type the following command: open filename.lkd")
 		} else {
-			a.add(ctx, words)
+			a.add(ctx, words[1:])
 			/*task := worker.Task{
 				Command: words[0], // open
 				Args:    words[1],
@@ -193,7 +194,7 @@ func (a *cliApp) handleCommand(ctx context.Context, input string) {
 			//a.taskCh <- task
 		}
 
-	case "open":
+	case cmd.OPEN:
 		if len(words) != 2 {
 			fmt.Println("~ To open the file, type the following command: open filename.lkd")
 			break
@@ -214,9 +215,9 @@ func (a *cliApp) handleCommand(ctx context.Context, input string) {
 			}
 			a.currentFile = f
 		*/
-	case "clear": // очистка всего файла с секретами
+	case cmd.CLEAR: // очистка всего файла с секретами
 
-	case "close": // закрыть файл, но не приложение
+	case cmd.CLOSE: // закрыть файл, но не приложение
 		/*
 			err := a.currentFile.Close()
 			if err != nil {
@@ -224,8 +225,8 @@ func (a *cliApp) handleCommand(ctx context.Context, input string) {
 			}
 		*/
 		a.currentFile = "" // xD закрыли)))
-	case "del": // удалить секрет из файла
-	case "exit": // выход из приложения
+	case cmd.DEL: // удалить секрет из файла
+	case cmd.EXIT: // выход из приложения
 		fmt.Println("~ ~ ~ Exiting the application. Goodbye! ~ ~ ~")
 		/*
 			err := a.currentFile.Close()
@@ -242,16 +243,19 @@ func (a *cliApp) listen() {
 		select {
 		case result := <-a.resCh:
 			switch result.Command {
-			case "new":
+			case cmd.NEW:
 				fmt.Printf("~ File %s successfully created\n", string(result.Data))
 				a.rl.Refresh()
-			case "add":
+			case cmd.ADD:
 				// ..
-			case "open":
+			case cmd.OPEN:
 				fmt.Printf("~ File %s opened\n", string(result.Data))
 				a.currentFile = string(result.Data)
 
 				a.updPromptCh <- fmt.Sprintf("locked/%s ~# ", a.currentFile)
+
+			case cmd.CLOSE:
+
 			}
 		case err := <-a.errCh:
 			fmt.Println("~ Error:", err) // вывод ошибки
