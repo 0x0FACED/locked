@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/0x0FACED/locked/cmd"
@@ -33,8 +34,35 @@ type cliApp struct {
 	updPromptCh chan string
 }
 
+func publicKey() ([]byte, error) {
+	f, err := os.Open(filepath.Join(secretsDir, masterFile))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	buf := make([]byte, info.Size())
+
+	_, err = f.Read(buf)
+	if err != nil {
+		return nil, err
+	}
+
+	return buf, nil
+}
+
 func NewCLIApp(resCh chan models.Result, errCh chan error, done chan struct{}) *cliApp {
-	secretService := services.New([]byte{}, [12]byte{}, resCh, errCh, done)
+	hash, err := publicKey()
+	if err != nil {
+		panic("cannot get master hash key")
+	}
+	fmt.Println("Public key: ", string(hash))
+	secretService := services.New(hash, [12]byte{}, resCh, errCh, done)
 	completer := completer()
 
 	//taskCh := make(chan worker.Task, 10) // 10 задач пока что пускай
